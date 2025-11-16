@@ -131,6 +131,9 @@ app.get('/api/gemini-output', verifyJwt, (req, res) => {
     if (!data) {
         return res.status(404).json({ status: 'pending' });
     }
+    try {
+        console.log('[gemini-output] responding for token:', token.slice(0, 12) + '...', 'payload keys:', Object.keys(data));
+    } catch (_) {}
     return res.status(200).json(data);
 });
 
@@ -195,6 +198,9 @@ app.post('/api/gemini-callback', express.json(), (req, res) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid clientToken' });
         }
         const payload = rest && Object.keys(rest).length ? rest : { message: 'OK' };
+        try {
+            console.log('[gemini-callback] received payload keys:', Object.keys(payload), 'for token:', (clientToken || '').slice(0, 12) + '...');
+        } catch (_) {}
         outputStore.set(clientToken, payload);
         // Push via SSE if clients are connected
         const clients = sseClients.get(clientToken);
