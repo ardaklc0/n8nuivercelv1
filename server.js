@@ -8,7 +8,23 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+  'https://n8nuivercelv1-git-main-ardaklc0s-projects.vercel.app', // Vercel frontend'iniz
+  'http://localhost:5500' // Yerel geliştirme ortamınız
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Eğer istek yapan adres izin verilenler listesindeyse veya bir origin yoksa (örn: sunucu içi istekler) izin ver
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(__dirname));
 
