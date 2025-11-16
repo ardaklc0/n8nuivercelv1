@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeIcon = document.getElementById('theme-icon');
 
     const n8nWebhookUrl = 'https://n8nuivercelv1.vercel.app/api/convert';
+    const geminiOutputUrl = 'https://n8nuivercelv1.vercel.app/api/gemini-output';
 
     const TOKEN_KEY = 'n8nui_token_cache';
     const TEN_MIN_MS = 10 * 60 * 1000;
@@ -63,6 +64,80 @@ document.addEventListener('DOMContentLoaded', () => {
         const store = getStorage();
         try { if (store) store.removeItem(TOKEN_KEY); } catch (_) {}
         memoryTokenCache = null;
+    };
+    const stopPolling = () => {
+        if (window.__geminiPollTimer) {
+            clearTimeout(window.__geminiPollTimer);
+            window.__geminiPollTimer = null;
+        }
+    };
+    const ensureOutputVisible = () => {
+        outputContainer.classList.remove('d-none');
+    };
+    const setOutputText = (text) => {
+        outputCode.textContent = text;
+        ensureOutputVisible();
+    };
+    const getValidToken = async () => {
+        const cached = loadCachedToken();
+        if (cached && cached.token) return cached.token;
+        const clientSecret = getClientSecret();
+        if (!clientSecret) throw new Error('No client access secret provided.');
+        const tokenResp = await fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-client-secret': clientSecret },
+            body: JSON.stringify({ clientSecret })
+        });
+        if (!tokenResp.ok) {
+            const err = await tokenResp.json().catch(() => ({}));
+            throw new Error(err.error || 'Could not fetch authentication token');
+        }
+        const payload = await tokenResp.json();
+        saveCachedToken(payload.token);
+        return payload.token;
+    };
+    const startPollingGeminiOutput = async (timeoutMs = 10 * 60 * 1000) => {
+        stopPolling();
+        const start = Date.now();
+        const tick = async () => {
+            try {
+                if (Date.now() - start > timeoutMs) {
+                    setOutputText('Still converting... (timeout)');
+                    stopPolling();
+                    return;
+                }
+                const token = await getValidToken();
+                const resp = await fetch(geminiOutputUrl, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resp.status === 401) {
+                    clearCachedToken();
+                    setOutputText('Converting...');
+                } else if (resp.ok) {
+                    const contentType = resp.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        const data = await resp.json();
+                        const display =
+                            (typeof data === 'string' && data) ||
+                            data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
+                        setOutputText(display);
+                    } else {
+                        const text = await resp.text();
+                        setOutputText(text || '');
+                    }
+                    stopPolling();
+                    return;
+                } else {
+                    setOutputText('Converting...');
+                }
+            } catch (_) {
+                setOutputText('Converting...');
+            }
+            window.__geminiPollTimer = setTimeout(tick, 1000);
+        };
+        setOutputText('Converting...');
+        window.__geminiPollTimer = setTimeout(tick, 1000);
     };
     darkModeSwitch.addEventListener('change', () => {
         document.body.classList.toggle('dark-mode');
@@ -120,6 +195,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 aiAgent: aiAgent,
                 outputFormat: outputFormat
             };
+            // Start polling the Gemini output endpoint every second
+            startPollingGeminiOutput();
             let convertResponse = await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: {
@@ -169,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     JSON.stringify(resultData, null, 2);
                 outputCode.textContent = display;
             outputContainer.classList.remove('d-none');
+            stopPolling();
         } catch (error) {
             console.error('Error during conversion process:', error);
             alert('An error occurred: ' + error.message);
