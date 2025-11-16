@@ -63,7 +63,7 @@ const verifyJwt = (req, res, next) => {
     });
 };
 
-app.post('/api/outputGemini', verifyJwt, async (req, res) => {
+app.post('/api/outputGemini', async (req, res) => {
     try {
         const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
     } catch (error) {
