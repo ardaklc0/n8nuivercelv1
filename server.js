@@ -68,16 +68,6 @@ const verifyJwt = (req, res, next) => {
     });
 };
 
-app.post('/api/gemini-output', async (req, res) => {
-    try {
-        const geminiData = req.body;
-        res.json({ message: 'Gemini data processed successfully', data: geminiData });
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Failed to process request' });
-    }
-});
-
 app.post('/api/convert', verifyJwt, async (req, res) => {
     try {
         const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
