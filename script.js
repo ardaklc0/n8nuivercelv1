@@ -160,7 +160,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!convertResponse.ok) {
                 throw new Error(resultData.error || `Webhook call failed with status: ${convertResponse.status}`);
             }
-            outputCode.textContent = resultData.text || JSON.stringify(resultData, null, 2);
+                const display =
+                    (typeof resultData === 'string' && resultData) ||
+                    resultData.text ||
+                    resultData.message ||
+                    resultData.output ||
+                    resultData.data ||
+                    JSON.stringify(resultData, null, 2);
+                outputCode.textContent = display;
             outputContainer.classList.remove('d-none');
         } catch (error) {
             console.error('Error during conversion process:', error);
