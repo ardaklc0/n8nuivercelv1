@@ -30,15 +30,11 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Frontend için JWT üreten yeni endpoint
-app.get('/api/get-token', (req, res) => {
-    const jwtSecret = process.env.JWT_SECRET;
-    if (!jwtSecret) {
-        return res.status(500).json({ error: 'Server configuration error: Secret not set' });
-    }
-    // Kısa ömürlü bir token oluştur (örn: 15 dakika)
-    const token = jwt.sign({ iss: 'n8n-converter-backend' }, jwtSecret, { expiresIn: '15m' });
-    res.json({ token });
+// Boot-time env visibility (safe — no secrets leaked)
+console.log('Env check on boot:', {
+    has_JWT_SECRET: !!process.env.JWT_SECRET,
+    JWT_SECRET_LENGTH: process.env.JWT_SECRET ? String(process.env.JWT_SECRET).length : 0,
+    VERCEL_ENV: process.env.VERCEL_ENV || 'unknown'
 });
 
 // JWT doğrulama middleware'i
@@ -127,6 +123,15 @@ app.get('/api/get-token', (req, res) => {
     // Kısa ömürlü bir token oluştur (örn: 15 dakika)
     const token = jwt.sign({ iss: 'n8n-converter-backend' }, jwtSecret, { expiresIn: '15m' });
     res.json({ token });
+});
+
+// Lightweight env debug endpoint (does not leak secrets)
+app.get('/api/debug-env', (req, res) => {
+    res.json({
+        has_JWT_SECRET: !!process.env.JWT_SECRET,
+        JWT_SECRET_LENGTH: process.env.JWT_SECRET ? String(process.env.JWT_SECRET).length : 0,
+        VERCEL_ENV: process.env.VERCEL_ENV || 'unknown'
+    });
 });
 
 app.listen(PORT, () => {
