@@ -57,7 +57,27 @@ const verifyJwt = (req, res, next) => {
     });
 };
 
-app.post('/api/convert', verifyJwt, async (req, res) => {
+// Static client token verification middleware
+const verifyClientToken = (req, res, next) => {
+    const required = process.env.CLIENT_TOKEN;
+    if (!required) {
+        return res.status(500).json({ error: 'Server configuration error: CLIENT_TOKEN not set' });
+    }
+
+    const headerToken = req.headers['x-client-token'];
+    let authClientToken = null;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Client ')) {
+        authClientToken = req.headers.authorization.substring('Client '.length);
+    }
+
+    const provided = headerToken || authClientToken || null;
+    if (!provided || provided !== required) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid client token' });
+    }
+    next();
+};
+
+app.post('/api/convert', verifyClientToken, async (req, res) => {
     try {
         const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
         

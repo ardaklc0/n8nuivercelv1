@@ -25,6 +25,15 @@ document.addEventListener('DOMContentLoaded', () => {
         themeIcon.textContent = '🌙';
     }
 
+    const getClientToken = () => {
+        let token = localStorage.getItem('clientToken');
+        if (!token) {
+            token = prompt('Enter Access Token');
+            if (token) localStorage.setItem('clientToken', token);
+        }
+        return token;
+    };
+
     convertBtn.addEventListener('click', async () => {
         const acText = acInput.value;
         const aiAgent = aiAgentSelect.value;
@@ -40,29 +49,25 @@ document.addEventListener('DOMContentLoaded', () => {
         convertBtn.disabled = true;
 
         try {
-            // 1. Adım: Backend'den yetkilendirme token'ı al
-            console.log('Fetching auth token...');
-            const tokenResponse = await fetch('https://n8nuivercelv1.vercel.app/api/get-token');
-            if (!tokenResponse.ok) {
-                throw new Error('Could not fetch authentication token.');
+            // 1. Adım: Kullanıcıdan/LocalStorage'dan statik erişim anahtarını al
+            const clientToken = getClientToken();
+            if (!clientToken) {
+                throw new Error('No client access token provided.');
             }
-            const tokenData = await tokenResponse.json();
-            const token = tokenData.token;
-            console.log('Auth token received.');
 
-            // 2. Adım: Alınan token ile asıl isteği yap
+            // 2. Adım: Erişim anahtarı ile asıl isteği yap
             const webhookData = {
                 acceptanceCriteria: acText,
                 aiAgent: aiAgent,
                 outputFormat: outputFormat
             };
 
-            console.log('Sending data to /api/convert with token...');
+            console.log('Sending data to /api/convert with client token...');
             const convertResponse = await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // Token'ı başlığa ekle
+                    'x-client-token': clientToken // Statik istemci anahtarı
                 },
                 body: JSON.stringify(webhookData),
             });
