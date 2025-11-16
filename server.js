@@ -32,18 +32,18 @@ app.use(express.static(__dirname));
 
 // Frontend için JWT üreten yeni endpoint
 app.get('/api/get-token', (req, res) => {
-    const frontendJwtSecret = process.env.FRONTEND_JWT_SECRET;
-    if (!frontendJwtSecret) {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
         return res.status(500).json({ error: 'Server configuration error: Secret not set' });
     }
     // Kısa ömürlü bir token oluştur (örn: 15 dakika)
-    const token = jwt.sign({ iss: 'n8n-converter-backend' }, frontendJwtSecret, { expiresIn: '15m' });
+    const token = jwt.sign({ iss: 'n8n-converter-backend' }, jwtSecret, { expiresIn: '15m' });
     res.json({ token });
 });
 
 // JWT doğrulama middleware'i
 const verifyJwt = (req, res, next) => {
-    const frontendJwtSecret = process.env.FRONTEND_JWT_SECRET;
+    const jwtSecret = process.env.JWT_SECRET;
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -52,7 +52,7 @@ const verifyJwt = (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
 
-    jwt.verify(token, frontendJwtSecret, (err, decoded) => {
+    jwt.verify(token, jwtSecret, (err, decoded) => {
         if (err) {
             return res.status(401).json({ error: 'Unauthorized: Invalid token' });
         }
