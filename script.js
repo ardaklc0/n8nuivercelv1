@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const loader = document.getElementById('loader');
     const outputContainer = document.getElementById('output-container');
     const outputCode = document.getElementById('output-code');
+    const outputFrame = document.getElementById('output-frame');
+    const renderedPanel = document.getElementById('rendered-panel');
     const acInput = document.getElementById('ac-input');
     const aiAgentSelect = document.getElementById('ai-agent-select');
     const outputFormatSelect = document.getElementById('output-format-select');
@@ -75,8 +77,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const ensureOutputVisible = () => {
         outputContainer.classList.remove('d-none');
     };
-    const setOutputText = (text) => {
+    const isLikelyHTML = (s) => {
+        if (typeof s !== 'string') return false;
+        if (/^\s*<!doctype html/i.test(s)) return true;
+        // Basic heuristic: has both opening and closing tags
+        return /<([a-z][\s\S]*?)>/i.test(s) && /<\/[a-z][\s\S]*?>/i.test(s);
+    };
+
+    const renderOutput = (content) => {
+        const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
         outputCode.textContent = text;
+        if (renderedPanel && outputFrame && isLikelyHTML(text)) {
+            const doc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"></head><body>${text}</body></html>`;
+            outputFrame.srcdoc = doc;
+            renderedPanel.classList.remove('d-none');
+        } else if (renderedPanel) {
+            renderedPanel.classList.add('d-none');
+        }
         ensureOutputVisible();
     };
     const getValidToken = async () => {
@@ -122,10 +139,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const display =
                             (typeof data === 'string' && data) ||
                             data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
-                        setOutputText(display);
+                        renderOutput(display);
                     } else {
                         const text = await resp.text();
-                        setOutputText(text || '');
+                        renderOutput(text || '');
                     }
                     stopPolling();
                     return;
@@ -137,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             window.__geminiPollTimer = setTimeout(tick, 1000);
         };
-        setOutputText('Converting...');
+        renderOutput('Converting...');
         window.__geminiPollTimer = setTimeout(tick, 1000);
     };
 
@@ -151,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const data = evt.data ? JSON.parse(evt.data) : {};
                 const display = (typeof data === 'string' && data) || data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
-                setOutputText(display || '');
+                renderOutput(display || '');
             } catch {
                 setOutputText(evt.data || '');
             }
@@ -269,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     resultData.output ||
                     resultData.data ||
                     JSON.stringify(resultData, null, 2);
-                outputCode.textContent = display;
+                renderOutput(display);
             outputContainer.classList.remove('d-none');
             stopPolling();
         } catch (error) {
