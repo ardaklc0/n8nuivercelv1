@@ -25,8 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
         themeIcon.textContent = '🌙';
     }
 
-    const getClientSecret = () => {        
-        let secret = process.env.JWT_SECRET || '';
+    const getClientSecret = () => {
+        let secret = localStorage.getItem('clientSecret');
+        if (!secret) {
+            secret = prompt('Enter Access Secret');
+            if (secret) localStorage.setItem('clientSecret', secret);
+        }
         return secret;
     };
 
