@@ -26,12 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const getClientSecret = () => {
-        let secret = localStorage.getItem('clientSecret');
-        if (!secret) {
-            secret = prompt('Enter Access Secret');
-            if (secret) localStorage.setItem('clientSecret', secret);
-        }
-        return secret;
+        // Avoid storage to prevent Tracking Prevention issues; prompt each time.
+        const entered = prompt('Enter Access Secret');
+        return entered ? entered.trim() : '';
     };
 
     convertBtn.addEventListener('click', async () => {
@@ -56,14 +53,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // 2. Adım: Gizli anahtar ile sunucudan kısa ömürlü JWT al
-            const tokenResp = await fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
+            let currentSecret = clientSecret.trim();
+            const getToken = async (secret) => fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-client-secret': clientSecret
+                    'x-client-secret': secret
                 },
-                body: JSON.stringify({ clientSecret })
+                body: JSON.stringify({ clientSecret: secret })
             });
+
+            let tokenResp = await getToken(currentSecret);
+            if (!tokenResp.ok && tokenResp.status === 401) {
+                // Secret likely wrong; prompt once more and retry
+                const retrySecret = getClientSecret();
+                if (!retrySecret) throw new Error('No client access secret provided.');
+                currentSecret = retrySecret;
+                tokenResp = await getToken(currentSecret);
+            }
             if (!tokenResp.ok) {
                 const err = await tokenResp.json().catch(() => ({}));
                 throw new Error(err.error || 'Could not fetch authentication token');

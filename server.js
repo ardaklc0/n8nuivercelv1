@@ -123,8 +123,11 @@ app.post('/api/get-token', (req, res) => {
         return res.status(500).json({ error: 'Server configuration error: CLIENT_SECRET not set' });
     }
 
-    const providedSecret = req.headers['x-client-secret'] || (req.body && req.body.clientSecret);
-    if (!providedSecret || providedSecret !== serverClientSecret) {
+    const headerSecret = typeof req.headers['x-client-secret'] === 'string' ? req.headers['x-client-secret'] : undefined;
+    const bodySecret = req.body && typeof req.body.clientSecret === 'string' ? req.body.clientSecret : undefined;
+    const providedSecret = (headerSecret || bodySecret || '').toString().trim();
+
+    if (!providedSecret || providedSecret !== String(serverClientSecret).trim()) {
         return res.status(401).json({ error: 'Unauthorized: Invalid client secret' });
     }
 
