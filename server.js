@@ -40,13 +40,22 @@ console.log('Env check on boot:', {
 // JWT doğrulama middleware'i
 const verifyJwt = (req, res, next) => {
     const jwtSecret = process.env.JWT_SECRET;
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    if (!jwtSecret) {
+        return res.status(500).json({ error: 'Server configuration error: JWT secret not set' });
     }
 
-    const token = authHeader.split(' ')[1];
+    const authHeader = req.headers.authorization;
+    // Support either Authorization: Bearer <token> or x-client-token: <token>
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    } else if (req.headers['x-client-token']) {
+        token = req.headers['x-client-token'];
+    }
+
+    if (!token) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    }
 
     jwt.verify(token, jwtSecret, (err, decoded) => {
         if (err) {
