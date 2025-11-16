@@ -75,6 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const ensureOutputVisible = () => {
         outputContainer.classList.remove('d-none');
+        if (outputHtml) outputHtml.classList.remove('d-none');
+        // Hide legacy <pre><code> block since we append into #output-html now
+        const preEl = outputCode && outputCode.closest ? outputCode.closest('pre') : null;
+        if (preEl) preEl.classList.add('d-none');
     };
     const sanitizeHtml = (html) => {
         try {
@@ -93,21 +97,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const escapeHtml = (text) => String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
     const renderOutput = (text) => {
-        const str = String(text ?? '');
-        const looksHtml = /<\s*(table|tr|td|th|thead|tbody|tfoot|ul|ol|li|p|div|span|h[1-6]|section|article|header|footer|br|hr)/i.test(str) || str.trim().startsWith('<');
-        if (looksHtml && outputHtml) {
-            const preEl = outputCode && outputCode.closest ? outputCode.closest('pre') : null;
-            if (preEl) preEl.classList.add('d-none');
-            outputHtml.classList.remove('d-none');
-            outputHtml.innerHTML = sanitizeHtml(str);
-        } else {
-            if (outputHtml) outputHtml.classList.add('d-none');
-            const preEl = outputCode && outputCode.closest ? outputCode.closest('pre') : null;
-            if (preEl) preEl.classList.remove('d-none');
-            outputCode.textContent = str;
-        }
+        const str = String(text ?? '').trim();
         ensureOutputVisible();
+        if (!outputHtml) {
+            // Fallback: if #output-html missing, keep legacy behavior
+            outputCode.textContent = str;
+            return;
+        }
+        // Decide append vs replace for status lines
+        const isStatus = str === 'Converting...' || str.startsWith('Still converting') || str.startsWith('Error:');
+        const looksHtml = /<\s*(table|tr|td|th|thead|tbody|tfoot|ul|ol|li|p|div|span|h[1-6]|section|article|header|footer|br|hr)/i.test(str) || str.startsWith('<');
+        if (looksHtml) {
+            const safe = sanitizeHtml(str);
+            // If only rows are provided, wrap into a Bootstrap table for valid markup
+            const onlyRows = /<\s*tr[\s>]/i.test(safe) && !/</i.test(safe.replace(/<\s*tr[\s\S]*?<\s*\/tr\s*>/gi, '')) && !/\btable\b/i.test(safe);
+            if (onlyRows) {
+                const tableHtml = `<div class="table-responsive mb-3"><table class="table table-striped table-bordered"><tbody>${safe}</tbody></table></div>`;
+                if (isStatus) outputHtml.innerHTML = tableHtml; else outputHtml.insertAdjacentHTML('beforeend', tableHtml);
+            } else {
+                if (isStatus) outputHtml.innerHTML = safe; else outputHtml.insertAdjacentHTML('beforeend', safe);
+            }
+        } else {
+            const pre = `<pre class="mb-3">${escapeHtml(str)}</pre>`;
+            if (isStatus) outputHtml.innerHTML = pre; else outputHtml.insertAdjacentHTML('beforeend', pre);
+        }
     };
     const getValidToken = async () => {
         const cached = loadCachedToken();
