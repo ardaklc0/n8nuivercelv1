@@ -63,9 +63,12 @@ const verifyJwt = (req, res, next) => {
     });
 };
 
-app.post('/api/outputGemini', async (req, res) => {
+app.post('/api/gemini-output', async (req, res) => {
     try {
-        const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
+        // I have a n8n gemini output with json and I want to process it here
+        const geminiData = req.body;
+        // Process the geminiData as needed
+        res.json({ message: 'Gemini data processed successfully', data: geminiData });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to process request' });
