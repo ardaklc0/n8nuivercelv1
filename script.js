@@ -103,6 +103,33 @@ document.addEventListener('DOMContentLoaded', () => {
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
 
+    // Ensure any <table> elements have Bootstrap classes and a responsive wrapper
+    const enhanceTables = (html) => {
+        try {
+            const container = document.createElement('div');
+            container.innerHTML = html;
+            const tables = container.querySelectorAll('table');
+            tables.forEach((tbl) => {
+                const current = (tbl.getAttribute('class') || '').trim();
+                const set = new Set(current.split(/\s+/).filter(Boolean));
+                set.add('table');
+                set.add('table-striped');
+                set.add('table-bordered');
+                tbl.setAttribute('class', Array.from(set).join(' '));
+                const parent = tbl.parentElement;
+                if (!parent || !parent.classList || !parent.classList.contains('table-responsive')) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'table-responsive mb-3';
+                    tbl.parentNode.insertBefore(wrap, tbl);
+                    wrap.appendChild(tbl);
+                }
+            });
+            return container.innerHTML;
+        } catch (_) {
+            return html;
+        }
+    };
+
     const renderOutput = (text) => {
         const str = String(text ?? '').trim();
         ensureOutputVisible();
@@ -122,7 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tableHtml = `<div class="table-responsive mb-3"><table class="table table-striped table-bordered"><tbody>${safe}</tbody></table></div>`;
                 if (isStatus) outputHtml.innerHTML = tableHtml; else outputHtml.insertAdjacentHTML('beforeend', tableHtml);
             } else {
-                if (isStatus) outputHtml.innerHTML = safe; else outputHtml.insertAdjacentHTML('beforeend', safe);
+                const enhanced = enhanceTables(safe);
+                if (isStatus) outputHtml.innerHTML = enhanced; else outputHtml.insertAdjacentHTML('beforeend', enhanced);
             }
         } else {
             const pre = `<pre class="mb-3">${escapeHtml(str)}</pre>`;
@@ -227,6 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return entered ? entered.trim() : '';
     };
     convertBtn.addEventListener('click', async () => {
+        // Reset any previous activity (polling/SSE/in-flight requests)
+        try { stopPolling(); } catch(_) {}
+        try { if (window.__geminiEventSource) { window.__geminiEventSource.close(); window.__geminiEventSource = null; } } catch(_) {}
+        try { if (window.__convertAbortController) { window.__convertAbortController.abort(); window.__convertAbortController = null; } } catch(_) {}
+
         const acText = acInput.value;
         const aiAgent = aiAgentSelect.value;
         const outputFormat = outputFormatSelect.value;
@@ -270,6 +303,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             // Prefer SSE for instant updates; fallback to polling if SSE fails
             subscribeGeminiEvents(token);
+            // Prepare abort controller for this convert request
+            const abortCtrl = new AbortController();
+            window.__convertAbortController = abortCtrl;
             let convertResponse = await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: {
@@ -277,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(webhookData),
+                signal: abortCtrl.signal,
             });
             if (convertResponse.status === 401) {
                 clearCachedToken();
@@ -304,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(webhookData),
+                    signal: abortCtrl.signal,
                 });
             }
             const resultData = await convertResponse.json();
@@ -321,13 +359,18 @@ document.addEventListener('DOMContentLoaded', () => {
             outputContainer.classList.remove('d-none');
             stopPolling();
         } catch (error) {
-            console.error('Error during conversion process:', error);
-            alert('An error occurred: ' + error.message);
-            renderOutput('Error: ' + error.message);
-            outputContainer.classList.remove('d-none');
+            if (error && error.name === 'AbortError') {
+                // Silently ignore aborted previous requests when re-running
+            } else {
+                console.error('Error during conversion process:', error);
+                alert('An error occurred: ' + error.message);
+                renderOutput('Error: ' + error.message);
+                outputContainer.classList.remove('d-none');
+            }
         } finally {
             loader.classList.add('d-none');
             convertBtn.disabled = false;
+            try { if (window.__convertAbortController) { window.__convertAbortController = null; } } catch(_) {}
         }
     });
 });
