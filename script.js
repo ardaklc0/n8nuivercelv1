@@ -75,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ensureOutputVisible = () => {
         outputContainer.classList.remove('d-none');
     };
-    const setOutputText = (text) => {
+    const renderOutput = (text) => {
         outputCode.textContent = text;
         ensureOutputVisible();
     };
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tick = async () => {
             try {
                 if (Date.now() - start > timeoutMs) {
-                    setOutputText('Still converting... (timeout)');
+                    renderOutput('Still converting... (timeout)');
                     stopPolling();
                     return;
                 }
@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (resp.status === 401) {
                     clearCachedToken();
-                    setOutputText('Converting...');
+                    renderOutput('Converting...');
                 } else if (resp.ok) {
                     const contentType = resp.headers.get('content-type') || '';
                     if (contentType.includes('application/json')) {
@@ -122,22 +122,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         const display =
                             (typeof data === 'string' && data) ||
                             data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
-                        setOutputText(display);
+                        renderOutput(display);
                     } else {
                         const text = await resp.text();
-                        setOutputText(text || '');
+                        renderOutput(text || '');
                     }
                     stopPolling();
                     return;
                 } else {
-                    setOutputText('Converting...');
+                    renderOutput('Converting...');
                 }
             } catch (_) {
-                setOutputText('Converting...');
+                renderOutput('Converting...');
             }
             window.__geminiPollTimer = setTimeout(tick, 1000);
         };
-        setOutputText('Converting...');
+        renderOutput('Converting...');
         window.__geminiPollTimer = setTimeout(tick, 1000);
     };
 
@@ -146,12 +146,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const url = `${geminiEventsUrl}?token=${encodeURIComponent(token)}`;
         const es = new EventSource(url, { withCredentials: false });
         window.__geminiEventSource = es;
-        setOutputText('Converting...');
+        renderOutput('Converting...');
         es.onmessage = (evt) => {
             try {
                 const data = evt.data ? JSON.parse(evt.data) : {};
                 const display = (typeof data === 'string' && data) || data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
-                setOutputText(display || '');
+                renderOutput(display || '');
             } catch {
                 setOutputText(evt.data || '');
             }
