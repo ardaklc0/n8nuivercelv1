@@ -21,10 +21,11 @@
                                 <span id="theme-icon">☀️</span>
                             </label>
                         </div>
-                        <h1 class="card-title text-center mb-4">AC Converter</h1>
+                        <h1 class="card-title text-center mb-4"><img src="adessoLogo.png" alt="AC Converter Logo"
+                                style="height: 40px; vertical-align: middle;"> AC Converter</h1>
                         <div class="mb-3">
                             <label for="ac-input" class="form-label">Acceptance Criteria</label>
-                            <textarea class="form-control" id="ac-input"
+                            <textarea class="form-control" id="ac-input" rows="10"
                                 placeholder="Enter your Acceptance Criteria here..."></textarea>
                         </div>
                         <div class="row g-3 mb-4">
@@ -58,6 +59,7 @@
                         </div>
                         <div id="output-container" class="mt-5 d-none">
                             <h3 class="text-center">Generated Test Cases</h3>
+                            <div id="output-html" class="d-none"></div>
                             <pre><code id="output-code"></code></pre>
                         </div>
                     </div>

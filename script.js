@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loader = document.getElementById('loader');
     const outputContainer = document.getElementById('output-container');
     const outputCode = document.getElementById('output-code');
+    const outputHtml = document.getElementById('output-html');
     const acInput = document.getElementById('ac-input');
     const aiAgentSelect = document.getElementById('ai-agent-select');
     const outputFormatSelect = document.getElementById('output-format-select');
@@ -75,8 +76,37 @@ document.addEventListener('DOMContentLoaded', () => {
     const ensureOutputVisible = () => {
         outputContainer.classList.remove('d-none');
     };
+    const sanitizeHtml = (html) => {
+        try {
+            // Remove script tags
+            let clean = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+            // Remove on*="..." inline handlers
+            clean = clean.replace(/ on[a-zA-Z]+\s*=\s*"[^"]*"/g, '')
+                         .replace(/ on[a-zA-Z]+\s*=\s*'[^']*'/g, '')
+                         .replace(/ on[a-zA-Z]+\s*=\s*[^\s>]+/g, '');
+            // Neutralize javascript: URLs
+            clean = clean.replace(/(href|src)\s*=\s*"javascript:[^"]*"/gi, '$1="#"')
+                         .replace(/(href|src)\s*=\s*'javascript:[^']*'/gi, "$1='#'");
+            return clean;
+        } catch (_) {
+            return html;
+        }
+    };
+
     const renderOutput = (text) => {
-        outputCode.textContent = text;
+        const str = String(text ?? '');
+        const looksHtml = /<\s*(table|tr|td|th|thead|tbody|tfoot|ul|ol|li|p|div|span|h[1-6]|section|article|header|footer|br|hr)/i.test(str) || str.trim().startsWith('<');
+        if (looksHtml && outputHtml) {
+            const preEl = outputCode && outputCode.closest ? outputCode.closest('pre') : null;
+            if (preEl) preEl.classList.add('d-none');
+            outputHtml.classList.remove('d-none');
+            outputHtml.innerHTML = sanitizeHtml(str);
+        } else {
+            if (outputHtml) outputHtml.classList.add('d-none');
+            const preEl = outputCode && outputCode.closest ? outputCode.closest('pre') : null;
+            if (preEl) preEl.classList.remove('d-none');
+            outputCode.textContent = str;
+        }
         ensureOutputVisible();
     };
     const getValidToken = async () => {
@@ -153,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const display = (typeof data === 'string' && data) || data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
                 renderOutput(display || '');
             } catch {
-                setOutputText(evt.data || '');
+                renderOutput(evt.data || '');
             }
             try { es.close(); } catch (_) {}
         };
@@ -269,13 +299,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     resultData.output ||
                     resultData.data ||
                     JSON.stringify(resultData, null, 2);
-                outputCode.textContent = display;
+                renderOutput(display);
             outputContainer.classList.remove('d-none');
             stopPolling();
         } catch (error) {
             console.error('Error during conversion process:', error);
             alert('An error occurred: ' + error.message);
-            outputCode.textContent = 'Error: ' + error.message;
+            renderOutput('Error: ' + error.message);
             outputContainer.classList.remove('d-none');
         } finally {
             loader.classList.add('d-none');
