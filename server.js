@@ -106,16 +106,27 @@ app.post('/api/convert', verifyJwt, async (req, res) => {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to process request' });
     }
-});
+});// server.js dosyasındaki ilgili bölümü güncelledim
 
-app.get('/api/debug-env', (req, res) => {
-    res.json({
-        message: "Vercel sunucusunun gördüğü ortam değişkenleri:",
-        NODE_ENV: process.env.NODE_ENV,
-        HAS_JWT_SECRET: !!process.env.JWT_SECRET, // Değeri göstermeden, sadece var olup olmadığını kontrol eder (true/false)
-        HAS_N8N_WEBHOOK_URL: !!process.env.N8N_WEBHOOK_URL,
-        JWT_SECRET_LENGTH: process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0 // Değerin uzunluğunu gösterir
-    });
+app.get('/api/get-token', (req, res) => {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+        // Hata durumunda daha fazla teşhis bilgisi döndür
+        return res.status(500).json({ 
+            error: 'Server configuration error: Secret not set',
+            debug_info: {
+                message: "Sunucu ortam değişkenlerini kontrol etti ve JWT_SECRET'ı bulamadı.",
+                // Vercel tarafından otomatik olarak ayarlanan bazı değişkenlerin varlığını kontrol edelim
+                has_VERCEL_ENV: !!process.env.VERCEL_ENV,
+                vercel_env_value: process.env.VERCEL_ENV || "Not Found",
+                // Aradığımız değişkenin varlığını tekrar kontrol edelim
+                has_JWT_SECRET: !!process.env.JWT_SECRET
+            }
+        });
+    }
+    // Kısa ömürlü bir token oluştur (örn: 15 dakika)
+    const token = jwt.sign({ iss: 'n8n-converter-backend' }, jwtSecret, { expiresIn: '15m' });
+    res.json({ token });
 });
 
 app.listen(PORT, () => {
