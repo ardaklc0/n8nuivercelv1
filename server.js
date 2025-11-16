@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3000;
 // In-memory store for async Gemini outputs keyed by client token
 // Note: On serverless platforms this is ephemeral; use a DB/kv for production.
 const outputStore = new Map();
+// SSE clients per client token (Map<string, Set<res>>)
+const sseClients = new Map();
 
 // Middleware
 const allowedOrigins = [
@@ -132,6 +134,49 @@ app.get('/api/gemini-output', verifyJwt, (req, res) => {
     return res.status(200).json(data);
 });
 
+// SSE endpoint: clients subscribe to receive output as soon as it's ready
+app.get('/api/gemini-events', (req, res) => {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) return res.status(500).end('JWT secret missing');
+    const token = (req.query.token || '').toString();
+    if (!token) return res.status(401).end('token required');
+    try {
+        jwt.verify(token, jwtSecret);
+    } catch {
+        return res.status(401).end('invalid token');
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    // Allow CORS for allowed origins is handled by cors() middleware
+    res.flushHeaders && res.flushHeaders();
+
+    // Send a comment to keep connection alive periodically
+    const keepAlive = setInterval(() => {
+        res.write(': keep-alive\n\n');
+    }, 25000);
+
+    // If we already have data, send immediately and close
+    const existing = outputStore.get(token);
+    if (existing) {
+        res.write(`data: ${JSON.stringify(existing)}\n\n`);
+        clearInterval(keepAlive);
+        return res.end();
+    }
+
+    // Register client
+    if (!sseClients.has(token)) sseClients.set(token, new Set());
+    const set = sseClients.get(token);
+    set.add(res);
+
+    req.on('close', () => {
+        clearInterval(keepAlive);
+        set.delete(res);
+        if (set.size === 0) sseClients.delete(token);
+    });
+});
+
 // Callback endpoint for n8n to post final Gemini output
 // Expected body: { text?: string, message?: string, output?: any, data?: any, clientToken: string }
 app.post('/api/gemini-callback', express.json(), (req, res) => {
@@ -149,7 +194,18 @@ app.post('/api/gemini-callback', express.json(), (req, res) => {
         } catch {
             return res.status(401).json({ error: 'Unauthorized: Invalid clientToken' });
         }
-        outputStore.set(clientToken, rest && Object.keys(rest).length ? rest : { message: 'OK' });
+        const payload = rest && Object.keys(rest).length ? rest : { message: 'OK' };
+        outputStore.set(clientToken, payload);
+        // Push via SSE if clients are connected
+        const clients = sseClients.get(clientToken);
+        if (clients && clients.size) {
+            const data = `data: ${JSON.stringify(payload)}\n\n`;
+            for (const clientRes of clients) {
+                try { clientRes.write(data); } catch {}
+                try { clientRes.end(); } catch {}
+            }
+            sseClients.delete(clientToken);
+        }
         return res.json({ ok: true });
     } catch (e) {
         console.error('Callback error:', e);

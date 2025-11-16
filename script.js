@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const n8nWebhookUrl = 'https://n8nuivercelv1.vercel.app/api/convert';
     const geminiOutputUrl = 'https://n8nuivercelv1.vercel.app/api/gemini-output';
+    const geminiEventsUrl = 'https://n8nuivercelv1.vercel.app/api/gemini-events';
 
     const TOKEN_KEY = 'n8nui_token_cache';
     const TEN_MIN_MS = 10 * 60 * 1000;
@@ -139,6 +140,30 @@ document.addEventListener('DOMContentLoaded', () => {
         setOutputText('Converting...');
         window.__geminiPollTimer = setTimeout(tick, 1000);
     };
+
+    const subscribeGeminiEvents = (token) => {
+        try { if (window.__geminiEventSource) { window.__geminiEventSource.close(); } } catch (_) {}
+        const url = `${geminiEventsUrl}?token=${encodeURIComponent(token)}`;
+        const es = new EventSource(url, { withCredentials: false });
+        window.__geminiEventSource = es;
+        setOutputText('Converting...');
+        es.onmessage = (evt) => {
+            try {
+                const data = evt.data ? JSON.parse(evt.data) : {};
+                const display = (typeof data === 'string' && data) || data.text || data.message || data.output || data.data || JSON.stringify(data, null, 2);
+                setOutputText(display || '');
+            } catch {
+                setOutputText(evt.data || '');
+            }
+            try { es.close(); } catch (_) {}
+        };
+        es.onerror = () => {
+            try { es.close(); } catch (_) {}
+            // Fallback to polling if SSE fails (e.g., network/CDN proxy)
+            startPollingGeminiOutput();
+        };
+        return () => { try { es.close(); } catch (_) {} };
+    };
     darkModeSwitch.addEventListener('change', () => {
         document.body.classList.toggle('dark-mode');
         const isDarkMode = document.body.classList.contains('dark-mode');
@@ -195,8 +220,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 aiAgent: aiAgent,
                 outputFormat: outputFormat
             };
-            // Start polling the Gemini output endpoint every second
-            startPollingGeminiOutput();
+            // Prefer SSE for instant updates; fallback to polling if SSE fails
+            subscribeGeminiEvents(token);
             let convertResponse = await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: {
