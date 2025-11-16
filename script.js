@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         themeIcon.textContent = '🌙';
     }
 
-    convertBtn.addEventListener('click', () => {
+    convertBtn.addEventListener('click', async () => {
         const acText = acInput.value;
         const aiAgent = aiAgentSelect.value;
         const outputFormat = outputFormatSelect.value;
@@ -39,75 +39,58 @@ document.addEventListener('DOMContentLoaded', () => {
         outputContainer.classList.add('d-none');
         convertBtn.disabled = true;
 
-        const webhookData = {
-            acceptanceCriteria: acText,
-            aiAgent: aiAgent,
-            outputFormat: outputFormat
-        };
-
-        console.log('Sending data to n8n:', webhookData);
-        console.log('Webhook URL:', n8nWebhookUrl);
-
-        fetch(n8nWebhookUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(webhookData),
-        })
-        .then(response => {
-            console.log('Response status:', response.status);
-            console.log('Response ok:', response.ok);
-            if (!response.ok) {
-                console.error('Webhook call failed with status:', response.status);
+        try {
+            // 1. Adım: Backend'den yetkilendirme token'ı al
+            console.log('Fetching auth token...');
+            const tokenResponse = await fetch('https://n8nuivercelv1.vercel.app/api/get-token');
+            if (!tokenResponse.ok) {
+                throw new Error('Could not fetch authentication token.');
             }
-            return response.json().catch(() => ({}));
-        })
-        .then(data => {
-            console.log('Webhook response data:', data);
-        })
-        .catch((error) => {
-            console.error('Error calling webhook:', error);
-            alert('Failed to connect to n8n webhook. Error: ' + error.message);
-        });
+            const tokenData = await tokenResponse.json();
+            const token = tokenData.token;
+            console.log('Auth token received.');
 
+            // 2. Adım: Alınan token ile asıl isteği yap
+            const webhookData = {
+                acceptanceCriteria: acText,
+                aiAgent: aiAgent,
+                outputFormat: outputFormat
+            };
 
-        // Simulate AI processing time
-        setTimeout(() => {
-            // Generate dummy output based on selection
-            let generatedOutput = '';
-            if (outputFormat === 'Decision Table') {
-                generatedOutput = `
-| Condition                           | Rule 1 | Rule 2 | Rule 3 |
-|-------------------------------------|--------|--------|--------|
-| User is logged in                   | Yes    | Yes    | No     |
-| User has valid subscription         | Yes    | No     | -      |
-| Action: Grant access to feature X   | Allow  | Deny   | Deny   |
-                `;
-            } else if (outputFormat === 'Gherkin') {
-                generatedOutput = `
-Feature: User Authentication
+            console.log('Sending data to /api/convert with token...');
+            const convertResponse = await fetch(n8nWebhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // Token'ı başlığa ekle
+                },
+                body: JSON.stringify(webhookData),
+            });
 
-  Scenario: Successful login with valid credentials
-    Given the user is on the login page
-    When the user enters valid username and password
-    And clicks the "Login" button
-    Then the user should be redirected to the dashboard
-                `;
-            } else {
-                generatedOutput = `
-Test Scenario 1: Verify login with valid credentials.
-Test Scenario 2: Verify login with invalid credentials.
-Test Scenario 3: Verify password recovery functionality.
-                `;
+            const resultData = await convertResponse.json();
+
+            if (!convertResponse.ok) {
+                // Sunucudan gelen hata mesajını kullan
+                throw new Error(resultData.error || `Webhook call failed with status: ${convertResponse.status}`);
             }
+            
+            console.log('Webhook response data:', resultData);
 
-            // Hide loader and show output
-            loader.classList.add('d-none');
-            outputCode.textContent = generatedOutput.trim();
+            // Sunucudan gelen gerçek yanıtı göster
+            // Not: Gelen verinin formatına göre bu kısmı düzenlemeniz gerekebilir.
+            // Örnek olarak, resultData.text varsayılmıştır.
+            outputCode.textContent = resultData.text || JSON.stringify(resultData, null, 2);
             outputContainer.classList.remove('d-none');
-            convertBtn.disabled = false;
 
-        }, 3000); // 3 seconds delay
+        } catch (error) {
+            console.error('Error during conversion process:', error);
+            alert('An error occurred: ' + error.message);
+            outputCode.textContent = 'Error: ' + error.message;
+            outputContainer.classList.remove('d-none');
+        } finally {
+            // İşlem bitince loader'ı kaldır ve butonu aktif et
+            loader.classList.add('d-none');
+            convertBtn.disabled = false;
+        }
     });
 });
