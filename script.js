@@ -11,6 +11,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const n8nWebhookUrl = 'https://n8nuivercelv1.vercel.app/api/convert';
 
+    // Simple token cache: sessionStorage if available, else in-memory. TTL = 10 minutes.
+    const TOKEN_KEY = 'n8nui_token_cache';
+    const TEN_MIN_MS = 10 * 60 * 1000;
+    let memoryTokenCache = null;
+
+    const getStorage = () => {
+        try {
+            // Test sessionStorage availability (Edge Tracking Prevention may block)
+            const testKey = '__test__';
+            sessionStorage.setItem(testKey, '1');
+            sessionStorage.removeItem(testKey);
+            return sessionStorage;
+        } catch (_) {
+            return null;
+        }
+    };
+
+    const loadCachedToken = () => {
+        const now = Date.now();
+        try {
+            const store = getStorage();
+            if (store) {
+                const raw = store.getItem(TOKEN_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && parsed.token && typeof parsed.expiresAt === 'number' && parsed.expiresAt > now) {
+                        return parsed;
+                    }
+                }
+            } else if (memoryTokenCache && memoryTokenCache.expiresAt > now) {
+                return memoryTokenCache;
+            }
+        } catch (_) {
+            // ignore parse/storage errors
+        }
+        return null;
+    };
+
+    const saveCachedToken = (token) => {
+        const data = { token, expiresAt: Date.now() + TEN_MIN_MS - 5000 };
+        const store = getStorage();
+        try {
+            if (store) {
+                store.setItem(TOKEN_KEY, JSON.stringify(data));
+            } else {
+                memoryTokenCache = data;
+            }
+        } catch (_) {
+            memoryTokenCache = data;
+        }
+        return data;
+    };
+
+    const clearCachedToken = () => {
+        const store = getStorage();
+        try { if (store) store.removeItem(TOKEN_KEY); } catch (_) {}
+        memoryTokenCache = null;
+    };
+
     darkModeSwitch.addEventListener('change', () => {
         document.body.classList.toggle('dark-mode');
         const isDarkMode = document.body.classList.contains('dark-mode');
@@ -26,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const getClientSecret = () => {
-        // Avoid storage to prevent Tracking Prevention issues; prompt each time.
+        // Prompt for the access secret (no persistent storage to avoid tracking prevention).
         const entered = prompt('Enter Access Secret');
         return entered ? entered.trim() : '';
     };
@@ -46,36 +105,31 @@ document.addEventListener('DOMContentLoaded', () => {
         convertBtn.disabled = true;
 
         try {
-            // 1. Adım: Kullanıcıdan/LocalStorage'dan paylaşılan gizli anahtarı al
-            const clientSecret = getClientSecret();
-            if (!clientSecret) {
-                throw new Error('No client access secret provided.');
-            }
+            // Step 1: Use cached JWT if available and valid (<=10 minutes old)
+            let cached = loadCachedToken();
+            let token = cached ? cached.token : null;
 
-            // 2. Adım: Gizli anahtar ile sunucudan kısa ömürlü JWT al
-            let currentSecret = clientSecret.trim();
-            const getToken = async (secret) => fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-client-secret': secret
-                },
-                body: JSON.stringify({ clientSecret: secret })
-            });
+            // Step 2: If no valid token, prompt for secret and request a new token
+            if (!token) {
+                const clientSecret = getClientSecret();
+                if (!clientSecret) throw new Error('No client access secret provided.');
 
-            let tokenResp = await getToken(currentSecret);
-            if (!tokenResp.ok && tokenResp.status === 401) {
-                // Secret likely wrong; prompt once more and retry
-                const retrySecret = getClientSecret();
-                if (!retrySecret) throw new Error('No client access secret provided.');
-                currentSecret = retrySecret;
-                tokenResp = await getToken(currentSecret);
+                const tokenResp = await fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-client-secret': clientSecret
+                    },
+                    body: JSON.stringify({ clientSecret })
+                });
+                if (!tokenResp.ok) {
+                    const err = await tokenResp.json().catch(() => ({}));
+                    throw new Error(err.error || 'Could not fetch authentication token');
+                }
+                const payload = await tokenResp.json();
+                token = payload.token;
+                saveCachedToken(token);
             }
-            if (!tokenResp.ok) {
-                const err = await tokenResp.json().catch(() => ({}));
-                throw new Error(err.error || 'Could not fetch authentication token');
-            }
-            const { token } = await tokenResp.json();
 
             // 3. Adım: Alınan token ile asıl isteği yap
             const webhookData = {
@@ -85,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             console.log('Sending data to /api/convert with client token...');
-            const convertResponse = await fetch(n8nWebhookUrl, {
+            let convertResponse = await fetch(n8nWebhookUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -93,6 +147,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify(webhookData),
             });
+
+            // If token was invalid/expired, clear cache, re-prompt once, and retry
+            if (convertResponse.status === 401) {
+                clearCachedToken();
+                const clientSecret = getClientSecret();
+                if (!clientSecret) throw new Error('No client access secret provided.');
+
+                const tokenResp = await fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-client-secret': clientSecret
+                    },
+                    body: JSON.stringify({ clientSecret })
+                });
+                if (!tokenResp.ok) {
+                    const err = await tokenResp.json().catch(() => ({}));
+                    throw new Error(err.error || 'Could not fetch authentication token');
+                }
+                const payload = await tokenResp.json();
+                token = payload.token;
+                saveCachedToken(token);
+
+                convertResponse = await fetch(n8nWebhookUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(webhookData),
+                });
+            }
 
             const resultData = await convertResponse.json();
 
