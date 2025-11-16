@@ -113,23 +113,16 @@ app.post('/api/convert', verifyJwt, async (req, res) => {
     }
 });// server.js dosyasındaki ilgili bölümü güncelledim
 
-app.get('/api/get-token', (req, res) => {
+// Token mint endpoint guarded by client-provided shared secret
+app.all('/api/get-token', (req, res) => {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-        // Hata durumunda daha fazla teşhis bilgisi döndür
-        return res.status(500).json({ 
-            error: 'Server configuration error: Secret not set',
-            debug_info: {
-                message: "Sunucu ortam değişkenlerini kontrol etti ve JWT_SECRET'ı bulamadı.",
-                // Vercel tarafından otomatik olarak ayarlanan bazı değişkenlerin varlığını kontrol edelim
-                has_VERCEL_ENV: !!process.env.VERCEL_ENV,
-                vercel_env_value: process.env.VERCEL_ENV || "Not Found",
-                // Aradığımız değişkenin varlığını tekrar kontrol edelim
-                has_JWT_SECRET: !!process.env.JWT_SECRET
-            }
-        });
+        return res.status(500).json({ error: 'Server configuration error: Secret not set' });
     }
-    // Kısa ömürlü bir token oluştur (örn: 15 dakika)
+    const provided = req.headers['x-client-secret'] || (req.body && req.body.clientSecret);
+    if (!provided || provided !== jwtSecret) {
+        return res.status(401).json({ error: 'Unauthorized: Invalid client secret' });
+    }
     const token = jwt.sign({ iss: 'n8n-converter-backend' }, jwtSecret, { expiresIn: '15m' });
     res.json({ token });
 });

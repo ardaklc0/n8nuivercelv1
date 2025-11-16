@@ -25,13 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
         themeIcon.textContent = '🌙';
     }
 
-    const getClientToken = () => {
-        let token = localStorage.getItem('clientToken');
-        if (!token) {
-            token = prompt('Enter Access Token');
-            if (token) localStorage.setItem('clientToken', token);
+    const getClientSecret = () => {
+        let secret = localStorage.getItem('clientSecret');
+        if (!secret) {
+            secret = prompt('Enter Access Secret');
+            if (secret) localStorage.setItem('clientSecret', secret);
         }
-        return token;
+        return secret;
     };
 
     convertBtn.addEventListener('click', async () => {
@@ -49,13 +49,28 @@ document.addEventListener('DOMContentLoaded', () => {
         convertBtn.disabled = true;
 
         try {
-            // 1. Adım: Kullanıcıdan/LocalStorage'dan statik erişim anahtarını al
-            const clientToken = getClientToken();
-            if (!clientToken) {
-                throw new Error('No client access token provided.');
+            // 1. Adım: Kullanıcıdan/LocalStorage'dan paylaşılan gizli anahtarı al
+            const clientSecret = getClientSecret();
+            if (!clientSecret) {
+                throw new Error('No client access secret provided.');
             }
 
-            // 2. Adım: Erişim anahtarı ile asıl isteği yap
+            // 2. Adım: Gizli anahtar ile sunucudan kısa ömürlü JWT al
+            const tokenResp = await fetch('https://n8nuivercelv1.vercel.app/api/get-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-client-secret': clientSecret
+                },
+                body: JSON.stringify({ clientSecret })
+            });
+            if (!tokenResp.ok) {
+                const err = await tokenResp.json().catch(() => ({}));
+                throw new Error(err.error || 'Could not fetch authentication token');
+            }
+            const { token } = await tokenResp.json();
+
+            // 3. Adım: Alınan token ile asıl isteği yap
             const webhookData = {
                 acceptanceCriteria: acText,
                 aiAgent: aiAgent,
@@ -67,7 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'x-client-token': clientToken // Statik istemci anahtarı
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(webhookData),
             });
