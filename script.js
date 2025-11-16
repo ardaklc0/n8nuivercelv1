@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
         convertBtn.disabled = true;
 
         try {
+            // 1. Adım: Kullanıcıdan/LocalStorage'dan paylaşılan gizli anahtarı al
             const clientSecret = getClientSecret();
             if (!clientSecret) {
                 throw new Error('No client access secret provided.');
