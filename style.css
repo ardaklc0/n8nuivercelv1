@@ -1,0 +1,148 @@
+@font-face {
+    font-family: "FS Truman Web";
+    src: url("https://db.onlinewebfonts.com/t/5d033c59186f3ff3e3e2305b22bb26c5.eot");
+    src: url("https://db.onlinewebfonts.com/t/5d033c59186f3ff3e3e2305b22bb26c5.eot?#iefix")format("embedded-opentype"),
+    url("https://db.onlinewebfonts.com/t/5d033c59186f3ff3e3e2305b22bb26c5.woff2")format("woff2"),
+    url("https://db.onlinewebfonts.com/t/5d033c59186f3ff3e3e2305b22bb26c5.woff")format("woff"),
+    url("https://db.onlinewebfonts.com/t/5d033c59186f3ff3e3e2305b22bb26c5.ttf")format("truetype"),
+    url("https://db.onlinewebfonts.com/t/5d033c59186f3ff3e3e2305b22bb26c5.svg#FS Truman Web")format("svg");
+}
+
+:root {
+    --primary-color: #006ec7;
+    --background-color-light: #F5F5F5;
+    --text-color-light: #000000;
+    --card-bg-light: #FEFFFF;
+
+    --background-color-dark: #121212;
+    --text-color-dark: #FEFFFF;
+    --card-bg-dark: #1E1E1E;
+}
+
+body {
+    font-family: 'FS Truman Web', sans-serif;
+    background-color: var(--background-color-light);
+    color: var(--text-color-light);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+body.dark-mode {
+    background-color: var(--background-color-dark);
+    color: var(--text-color-dark);
+}
+
+.card {
+    border: none;
+    border-radius: 15px;
+    background-color: var(--card-bg-light);
+    transition: background-color 0.3s;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+body.dark-mode .card {
+    background-color: var(--card-bg-dark);
+    box-shadow: 0 0.5rem 1rem rgba(255, 255, 255, 0.05);
+}
+
+.card-title {
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+body.dark-mode .card-title {
+    color: #FEFFFF;
+}
+
+
+.form-control, .form-select {
+    border-radius: 8px;
+    padding: 12px;
+    background-color: var(--background-color-light);
+    color: var(--text-color-light);
+    border: 1px solid #e8e8e8;
+}
+
+body.dark-mode .form-control,
+body.dark-mode .form-select {
+    background-color: #333;
+    color: var(--text-color-dark);
+    border-color: #555;
+}
+
+body.dark-mode .form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+.form-control:focus, .form-select:focus {
+    box-shadow: 0 0 0 0.25rem rgba(0, 110, 199, 0.25);
+    border-color: var(--primary-color);
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    padding: 12px;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.btn-primary:hover {
+    background-color: #005a9e;
+    border-color: #005a9e;
+}
+
+#output-container {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+body.dark-mode #output-container {
+    background-color: #2a2a2a;
+}
+
+#output-code {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--text-color-light);
+}
+
+body.dark-mode #output-code {
+    color: var(--text-color-dark);
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+    color: var(--primary-color);
+}
+
+.form-label {
+    color: var(--text-color-light);
+    transition: color 0.3s;
+}
+
+body.dark-mode .form-label {
+    color: var(--text-color-dark);
+}
+
+.form-check-label {
+    color: var(--text-color-light);
+}
+
+body.dark-mode .form-check-label {
+    color: var(--text-color-dark);
+}
+
+body.dark-mode .form-control::placeholder {
+    color: #aaa;
+}
+
+body.dark-mode h3 {
+    color: var(--text-color-dark);
+}
+
+body.dark-mode p {
+    color: var(--text-color-dark);
+}
