@@ -108,6 +108,16 @@ app.post('/api/convert', verifyJwt, async (req, res) => {
     }
 });
 
+app.get('/api/debug-env', (req, res) => {
+    res.json({
+        message: "Vercel sunucusunun gördüğü ortam değişkenleri:",
+        NODE_ENV: process.env.NODE_ENV,
+        HAS_JWT_SECRET: !!process.env.JWT_SECRET, // Değeri göstermeden, sadece var olup olmadığını kontrol eder (true/false)
+        HAS_N8N_WEBHOOK_URL: !!process.env.N8N_WEBHOOK_URL,
+        JWT_SECRET_LENGTH: process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0 // Değerin uzunluğunu gösterir
+    });
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
