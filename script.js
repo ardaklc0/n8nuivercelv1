@@ -76,7 +76,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const ensureOutputVisible = () => {
         outputContainer.classList.remove('d-none');
         if (outputHtml) outputHtml.classList.remove('d-none');
-        // Hide legacy <pre><code> block since we append into #output-html now
         const preEl = outputCode && outputCode.closest ? outputCode.closest('pre') : null;
         if (preEl) preEl.classList.add('d-none');
     };
@@ -104,6 +103,16 @@ document.addEventListener('DOMContentLoaded', () => {
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
 
+    const clearStatusLines = () => {
+        if (!outputHtml) return;
+        const targets = outputHtml.querySelectorAll('pre.mb-3');
+        targets.forEach(el => {
+            const t = (el.textContent || '').trim();
+            if (t === 'Converting...' || t === 'Workflow was started' || t.startsWith('Still converting')) {
+                try { el.remove(); } catch (_) {}
+            }
+        });
+    };
     const renderOutput = (text) => {
         const str = String(text ?? '').trim();
         ensureOutputVisible();
@@ -113,7 +122,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         // Decide append vs replace for status lines
-        const isStatus = str === 'Converting...' || str.startsWith('Still converting') || str.startsWith('Error:');
+        const isStatus = str === 'Converting...'
+            || str.startsWith('Still converting')
+            || str === 'Workflow was started'
+            || str.startsWith('Error:');
         const looksHtml = /<\s*(table|tr|td|th|thead|tbody|tfoot|ul|ol|li|p|div|span|h[1-6]|section|article|header|footer|br|hr)/i.test(str) || str.startsWith('<');
         if (looksHtml) {
             const safe = sanitizeHtml(str);
@@ -121,13 +133,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const onlyRows = /<\s*tr[\s>]/i.test(safe) && !/</i.test(safe.replace(/<\s*tr[\s\S]*?<\s*\/tr\s*>/gi, '')) && !/\btable\b/i.test(safe);
             if (onlyRows) {
                 const tableHtml = `<div class="table-responsive mb-3"><table class="table table-striped table-bordered"><tbody>${safe}</tbody></table></div>`;
-                if (isStatus) outputHtml.innerHTML = tableHtml; else outputHtml.insertAdjacentHTML('beforeend', tableHtml);
+                if (isStatus) {
+                    outputHtml.innerHTML = tableHtml;
+                } else {
+                    clearStatusLines();
+                    outputHtml.insertAdjacentHTML('beforeend', tableHtml);
+                }
             } else {
-                if (isStatus) outputHtml.innerHTML = safe; else outputHtml.insertAdjacentHTML('beforeend', safe);
+                if (isStatus) {
+                    outputHtml.innerHTML = safe;
+                } else {
+                    clearStatusLines();
+                    outputHtml.insertAdjacentHTML('beforeend', safe);
+                }
             }
         } else {
             const pre = `<pre class="mb-3">${escapeHtml(str)}</pre>`;
-            if (isStatus) outputHtml.innerHTML = pre; else outputHtml.insertAdjacentHTML('beforeend', pre);
+            if (isStatus) {
+                outputHtml.innerHTML = pre;
+            } else {
+                clearStatusLines();
+                outputHtml.insertAdjacentHTML('beforeend', pre);
+            }
         }
     };
     const getValidToken = async () => {
