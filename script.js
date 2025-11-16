@@ -111,8 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
             outputCode.textContent = str;
             return;
         }
-        // Decide append vs replace for status lines
-        const isStatus = str === 'Converting...' || str.startsWith('Still converting') || str.startsWith('Error:');
+        // No interim status lines; only render final or error outputs
+        const isStatus = false;
         const looksHtml = /<\s*(table|tr|td|th|thead|tbody|tfoot|ul|ol|li|p|div|span|h[1-6]|section|article|header|footer|br|hr)/i.test(str) || str.startsWith('<');
         if (looksHtml) {
             const safe = sanitizeHtml(str);
@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const tick = async () => {
             try {
                 if (Date.now() - start > timeoutMs) {
-                    renderOutput('Still converting... (timeout)');
+                    renderOutput('No response received (timeout).');
                     stopPolling();
                     return;
                 }
@@ -164,7 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 if (resp.status === 401) {
                     clearCachedToken();
-                    renderOutput('Converting...');
                 } else if (resp.ok) {
                     const contentType = resp.headers.get('content-type') || '';
                     if (contentType.includes('application/json')) {
@@ -180,14 +179,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     stopPolling();
                     return;
                 } else {
-                    renderOutput('Converting...');
                 }
             } catch (_) {
-                renderOutput('Converting...');
             }
             window.__geminiPollTimer = setTimeout(tick, 1000);
         };
-        renderOutput('Converting...');
         window.__geminiPollTimer = setTimeout(tick, 1000);
     };
 
@@ -196,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const url = `${geminiEventsUrl}?token=${encodeURIComponent(token)}`;
         const es = new EventSource(url, { withCredentials: false });
         window.__geminiEventSource = es;
-        renderOutput('Converting...');
         es.onmessage = (evt) => {
             try {
                 const data = evt.data ? JSON.parse(evt.data) : {};
@@ -239,8 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Please enter Acceptance Criteria.');
             return;
         }
+        // Show spinner-only loader, clear previous outputs
         loader.classList.remove('d-none');
         outputContainer.classList.add('d-none');
+        try { if (outputHtml) outputHtml.innerHTML = ''; } catch(_) {}
+        try { if (outputCode) outputCode.textContent = ''; } catch(_) {}
         convertBtn.disabled = true;
         try {
             let cached = loadCachedToken();
