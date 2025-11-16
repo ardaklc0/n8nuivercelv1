@@ -25,12 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
         themeIcon.textContent = '🌙';
     }
 
-    const getClientSecret = () => {
-        let secret = localStorage.getItem('clientSecret');
-        if (!secret) {
-            secret = prompt('Enter Access Secret');
-            if (secret) localStorage.setItem('clientSecret', secret);
-        }
+    const getClientSecret = () => {        
+        let secret = process.env.JWT_SECRET || '';
         return secret;
     };
 
@@ -49,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
         convertBtn.disabled = true;
 
         try {
-            // 1. Adım: Kullanıcıdan/LocalStorage'dan paylaşılan gizli anahtarı al
             const clientSecret = getClientSecret();
             if (!clientSecret) {
                 throw new Error('No client access secret provided.');

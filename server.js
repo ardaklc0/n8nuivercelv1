@@ -9,15 +9,14 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 const allowedOrigins = [
-  'https://n8nuivercelv1.vercel.app', // Ana Vercel URL'si eklendi
+  'https://n8nuivercelv1.vercel.app', 
   'https://n8nuivercelv1-git-main-ardaklc0s-projects.vercel.app', 
   'http://localhost:5500',
-  'http://127.0.0.1:5500' // 127.0.0.1 eklendi
+  'http://127.0.0.1:5500'
 ];
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Eğer istek yapan adres izin verilenler listesindeyse veya bir origin yoksa (örn: sunucu içi istekler) izin ver
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
@@ -30,14 +29,12 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Boot-time env visibility (safe — no secrets leaked)
 console.log('Env check on boot:', {
     has_JWT_SECRET: !!process.env.JWT_SECRET,
     JWT_SECRET_LENGTH: process.env.JWT_SECRET ? String(process.env.JWT_SECRET).length : 0,
     VERCEL_ENV: process.env.VERCEL_ENV || 'unknown'
 });
 
-// JWT doğrulama middleware'i
 const verifyJwt = (req, res, next) => {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
@@ -45,7 +42,6 @@ const verifyJwt = (req, res, next) => {
     }
 
     const authHeader = req.headers.authorization;
-    // Support either Authorization: Bearer <token> or x-client-token: <token>
     let token = null;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         token = authHeader.split(' ')[1];
@@ -111,23 +107,25 @@ app.post('/api/convert', verifyJwt, async (req, res) => {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to process request' });
     }
-});// server.js dosyasındaki ilgili bölümü güncelledim
+});
 
-// Token mint endpoint guarded by client-provided shared secret
-app.all('/api/get-token', (req, res) => {
+app.get('/api/get-token', (req, res) => {
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
-        return res.status(500).json({ error: 'Server configuration error: Secret not set' });
-    }
-    const provided = req.headers['x-client-secret'] || (req.body && req.body.clientSecret);
-    if (!provided || provided !== jwtSecret) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid client secret' });
+        return res.status(500).json({ 
+            error: 'Server configuration error: Secret not set',
+            debug_info: {
+                message: "Sunucu ortam değişkenlerini kontrol etti ve JWT_SECRET'ı bulamadı.",
+                has_VERCEL_ENV: !!process.env.VERCEL_ENV,
+                vercel_env_value: process.env.VERCEL_ENV || "Not Found",
+                has_JWT_SECRET: !!process.env.JWT_SECRET
+            }
+        });
     }
     const token = jwt.sign({ iss: 'n8n-converter-backend' }, jwtSecret, { expiresIn: '15m' });
     res.json({ token });
 });
 
-// Lightweight env debug endpoint (does not leak secrets)
 app.get('/api/debug-env', (req, res) => {
     res.json({
         has_JWT_SECRET: !!process.env.JWT_SECRET,
