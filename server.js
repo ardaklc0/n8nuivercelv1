@@ -7,6 +7,10 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// In-memory store for async Gemini outputs keyed by client token
+// Note: On serverless platforms this is ephemeral; use a DB/kv for production.
+const outputStore = new Map();
+
 // Middleware
 const allowedOrigins = [
   'https://n8nuivercelv1.vercel.app', 
@@ -59,6 +63,7 @@ const verifyJwt = (req, res, next) => {
             return res.status(401).json({ error: 'Unauthorized: Invalid token' });
         }
         req.user = decoded;
+        req.token = token;
         next();
     });
 };
@@ -93,13 +98,20 @@ app.post('/api/convert', verifyJwt, async (req, res) => {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
+        // Provide callbackUrl and clientToken so n8n can report back when done
+        const proto = req.headers['x-forwarded-proto'] || 'https';
+        const host = req.headers['host'];
+        const baseUrl = `${proto}://${host}`;
+
         const response = await fetch(n8nWebhookUrl, {
             method: 'POST',
             headers: headers,
             body: JSON.stringify({
                 acceptanceCriteria,
                 aiAgent,
-                outputFormat
+                outputFormat,
+                callbackUrl: `${baseUrl}/api/gemini-callback`,
+                clientToken: req.token
             })
         });
 
@@ -117,6 +129,41 @@ app.post('/api/convert', verifyJwt, async (req, res) => {
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ error: 'Failed to process request' });
+    }
+});
+
+// Polling endpoint for client to fetch Gemini output when ready
+app.get('/api/gemini-output', verifyJwt, (req, res) => {
+    const token = req.token;
+    const data = outputStore.get(token);
+    if (!data) {
+        return res.status(404).json({ status: 'pending' });
+    }
+    return res.status(200).json(data);
+});
+
+// Callback endpoint for n8n to post final Gemini output
+// Expected body: { text?: string, message?: string, output?: any, data?: any, clientToken: string }
+app.post('/api/gemini-callback', express.json(), (req, res) => {
+    try {
+        const { clientToken, ...rest } = req.body || {};
+        const jwtSecret = process.env.JWT_SECRET;
+        if (!jwtSecret) {
+            return res.status(500).json({ error: 'Server configuration error: JWT secret not set' });
+        }
+        if (!clientToken || typeof clientToken !== 'string') {
+            return res.status(400).json({ error: 'clientToken required' });
+        }
+        try {
+            jwt.verify(clientToken, jwtSecret);
+        } catch {
+            return res.status(401).json({ error: 'Unauthorized: Invalid clientToken' });
+        }
+        outputStore.set(clientToken, rest && Object.keys(rest).length ? rest : { message: 'OK' });
+        return res.json({ ok: true });
+    } catch (e) {
+        console.error('Callback error:', e);
+        return res.status(500).json({ error: 'Callback failed' });
     }
 });
 
