@@ -256,6 +256,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     convertBtn.addEventListener('click', async () => {
         // Reset any previous activity (polling/SSE/in-flight requests)
+        // delete previous outputs
+        if (outputHtml) outputHtml.innerHTML = '';
+        if (outputCode) outputCode.textContent = '';
         try { stopPolling(); } catch(_) {}
         try { if (window.__geminiEventSource) { window.__geminiEventSource.close(); window.__geminiEventSource = null; } } catch(_) {}
         try { if (window.__convertAbortController) { window.__convertAbortController.abort(); window.__convertAbortController = null; } } catch(_) {}
