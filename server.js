@@ -30,7 +30,38 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.static(__dirname));
 
-app.post('/api/convert', async (req, res) => {
+// Frontend için JWT üreten yeni endpoint
+app.get('/api/get-token', (req, res) => {
+    const frontendJwtSecret = process.env.FRONTEND_JWT_SECRET;
+    if (!frontendJwtSecret) {
+        return res.status(500).json({ error: 'Server configuration error: Secret not set' });
+    }
+    // Kısa ömürlü bir token oluştur (örn: 15 dakika)
+    const token = jwt.sign({ iss: 'n8n-converter-backend' }, frontendJwtSecret, { expiresIn: '15m' });
+    res.json({ token });
+});
+
+// JWT doğrulama middleware'i
+const verifyJwt = (req, res, next) => {
+    const frontendJwtSecret = process.env.FRONTEND_JWT_SECRET;
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    jwt.verify(token, frontendJwtSecret, (err, decoded) => {
+        if (err) {
+            return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+        }
+        req.user = decoded;
+        next();
+    });
+};
+
+app.post('/api/convert', verifyJwt, async (req, res) => {
     try {
         const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
         
