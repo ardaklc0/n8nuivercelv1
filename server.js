@@ -9,8 +9,8 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 const allowedOrigins = [
-  'https://n8nuivercelv1-git-main-ardaklc0s-projects.vercel.app', // Vercel frontend'iniz
-  'http://localhost:5500' // Yerel geliştirme ortamınız
+  'https://n8nuivercelv1.vercel.app/api/convert', 
+  'http://localhost:5500'
 ];
 
 const corsOptions = {

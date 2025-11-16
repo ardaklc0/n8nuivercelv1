@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const darkModeSwitch = document.getElementById('darkModeSwitch');
     const themeIcon = document.getElementById('theme-icon');
 
-    const n8nWebhookUrl = 'https://n8nuivercelv1-git-main-ardaklc0s-projects.vercel.app/api/convert'; // Backend proxy endpoint
+    const n8nWebhookUrl = 'https://n8nuivercelv1.vercel.app/api/convert';
 
     darkModeSwitch.addEventListener('change', () => {
         document.body.classList.toggle('dark-mode');
