@@ -63,6 +63,15 @@ const verifyJwt = (req, res, next) => {
     });
 };
 
+app.post('/api/outputGemini', verifyJwt, async (req, res) => {
+    try {
+        const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to process request' });
+    }
+});
+
 app.post('/api/convert', verifyJwt, async (req, res) => {
     try {
         const { acceptanceCriteria, aiAgent, outputFormat } = req.body;
